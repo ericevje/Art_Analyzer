@@ -1,0 +1,241 @@
+---
+title: "Predictive Abilities of Shannon Entropy in Paintings"
+author: "Eric Evje"
+date: "May 6, 2020"
+output:
+  pdf_document:
+    fig_height: 3.5
+    fig_width: 5
+    includes:
+      in_header: pset_header.tex
+  word_document: default
+geometry: margin=1in
+fontsize: 11pt
+---
+
+```{r setup, include=FALSE}
+options(digits=4)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Problem 1
+Simulation time. We want to investigate the effect of multicollinearity on the regression estimates. We will find that the estimates are still unbiased (on average equal to the true value) under multicollinearity but the standard errors are way bigger.
+
+We are going to fit the model y=7+3x1+4x2+noise where the noise is normal with mean 0 and variance 25.
+
+Use a sample size of n=10 and 1000 simulations.
+
+\textbf{Simulation 1:}
+
+Using
+\begin{itemize}
+\item $x1 = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)$
+\item $x2 = c(1, 2, 3, 4, 5, 7, 6, 10, 9, 8)$
+\end{itemize}
+
+What is the correlation of x1 and x2? Generate simulated data 10000 times and create a histogram of the estimated b1’s and b2’s.
+
+To assist you, the general form of the simulation will be
+```{r}
+n=10
+numsimul=1000
+b1vals = 1:numsimul
+b2vals = 1:numsimul
+x1 = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+x2 = c(1, 2, 3, 4, 5, 7, 6, 10, 9, 8)
+for(i in 1:numsimul){
+  y = 7+3*x1+4*x2+rnorm(10,0,5)
+  fit=lm(y~x1+x2)
+  b1vals[i] = coef(fit)[2]
+  b2vals[i] = coef(fit)[3]
+}
+
+par(mfrow=c(1,2))
+hist(b1vals)
+hist(b2vals)
+corr = cor(x1, x2)
+mean_b1 = mean(b1vals)
+mean_b2 = mean(b2vals)
+std_b1 = sd(b1vals)
+std_b2 = sd(b2vals)
+```
+
+**The mean of $\beta_1 = `r mean_b1`$ and the mean of $\beta_2 = `r mean_b2`$ are very close to the actual values of $\beta_1$ and $\beta_2$. The correlation of x1 to x2 is $`r corr`$.**
+
+\textbf{Simulation 2:}
+Using
+\begin{itemize}
+\item $x1 = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)$
+\item $x2 = c(9, 2, 7, 4, 5, 6, 3, 8, 1, 10)$
+\end{itemize}
+
+```{r}
+n=10
+numsimul=1000
+b1vals = 1:numsimul
+b2vals = 1:numsimul
+x1 = c(1,2,3,4,5,6,7,8,9,10)
+x2 = c(9,2,7,4,5,6,3,8,1,10)
+for(i in 1:numsimul){
+  y = 7+3*x1+4*x2+rnorm(10,0,5)
+  fit=lm(y~x1+x2)
+  b1vals[i] = coef(fit)[2]
+  b2vals[i] = coef(fit)[3]
+}
+
+par(mfrow=c(1,2))
+hist(b1vals)
+hist(b2vals)
+corr = cor(x1, x2)
+mean_b1 = mean(b1vals)
+mean_b2 = mean(b2vals)
+std_b1 = sd(b1vals)
+std_b2 = sd(b2vals)
+```
+
+What is the correlation of x1 and x2? Generate simulated data 1000 times and create a histogram of the 1000 estimated b1’s and b2’s.
+
+**The correlation between x1 and x2 is $`r corr`$.**
+
+Compare a histogram of estimates of b1 under both simulations and same for b2. Write a few sentences explaining what you observe.
+
+**It is very clear from the two histograms that simulation 1 had higher standard errors for each of the values x1 and x2, and also the higher correlation between x1 and x2. Simulation 2 on the other hand had much lower standard error and much lower correlation.**
+
+### Problem 2
+Problem 2, page 215 of Simon book
+
+**There are at least two potential problems with this model. One is risk of multicollinearity. Many of these variables revolve around wins this season or last, as well as time in the form of year. It is a sfe assumption that teams that were good the year before will also be good the following year. Also, adding year into the model will most likely correlate to this as well. It would be better to transform the income data using inflation statistics before putting into the model. Also, the playoff appearances will highly correlate with wins since one casues the other by the rules of baseball. Another may be market size to per-capita income. These could also be correlated.** 
+
+**Another issue (though not necessarily), would be the significance value they use (0.1) instead of the more traditional 0.05. They may allow too many variables into the model which may cause overfitting and bad predictability.**
+
+### Problem 3
+Problem 3, page 216 of Simon book
+
+**a. 6.36 is not a valid model. Firstly, the intercept is at -68965.793 implying a possibility of a negatively expensive car. Secondly, the $\beta$ term for motor size is -6957.457. Bigger motors cost more so it is not logical that a larger would make the car cost less. Most of these issues are probably due to the multicollinearity that is observeable in the matrix plot of the variables above. You can also see that there are very few hybrid cars as compared to non-hybrid vehicles, so it is dangerous to have these in the mdoel.**
+
+**b. From this plot, it is possible to observe that the model tends to overpredict price for cheap and expensive cars, and underpredicts for moderately priced cars.** 
+
+**c. There are 4 points with out of band leverage values, but the only one labeled is 67.** 
+
+**d. After the transformation, the VIF values are all below 10, so the original issue with multicollinearity has been dealt with. I would say this is a valid model.** 
+
+**e. The original model had an F-statistic of 219.9 while the updated model has an F-statistic of 284.9. This shows that the new model explains more of the variance found in the data than the original model did.**
+
+### Problem 4
+Problem 5, page 224 of Simon book
+
+**a.)**
+```{r}
+mydata=read.csv("http://www.datadescant.com/stat109/pgatour2006.csv")
+par(mfrow=c(1,2))
+hist(mydata$PrizeMoney)
+hist(log(mydata$PrizeMoney))
+```
+
+**That is a sensible correction, since the prize money is skewed to the right, meaning many of the players make a relatively low amount of money while some players make an extremely high amount of money. The histograms above show the difference in the spread of the data before and after correction.**  
+
+**b.)** 
+```{r}
+library(car)
+fit_log = lm(log(PrizeMoney)~. -Name -TigerWoods, data=mydata)
+par(mfrow=c(2,2))
+plot(fit_log, which=1:4)
+vif(fit_log)
+summary(fit_log)
+```
+
+**c. Based on Cook's distance, points 40, 63, and especially 185 should be investigated for being influential points.** 
+
+**d. There are some issues with the full model. Firstly, most of the predictors are not significant when in the full model. Secondly, putts per average and putts per round are highly correlated with VIF values above 10. It is clear these are related and one should be removed from the model. The diagnostic plots of the model look OK. There are at least three influential points that should be investigated prior to model building.** 
+
+**e. It is best practice to remove one variable at a time from a model and re-run until all that remain are significant. Removing all at once may lead to omitted variable bias.** 
+
+### Problem 5
+Rawlings book, Problem 3.1 page 93
+
+**a. 30x1**
+
+**b. 30x5**
+
+**c. 30x6**
+
+**d. 5x1**
+
+**e. 6x1**
+
+**f. 30x1**
+
+**g. 6x6**
+
+**h. 31x31**
+
+
+
+### Problem 6
+Rawlings book, Problem 3.5 page 93[skip part e] (the P matrix is what we call the hat matrix)
+
+**a.) b.) c.)**
+```{r}
+Y = matrix(c(78.5, 74.3, 104.3, 87.6, 95.9, 109.2, 102.7))
+X = matrix(c(1, 1, 1, 1, 1, 1, 1,
+             7, 1, 11, 11, 7, 11, 3,
+             2.6, 2.9, 5.6, 3.1, 5.2, 5.5, 7.1), nrow=7, ncol=3)
+#Y matrix
+Y
+#Xmatrix
+X
+```
+
+**d.) f.)**
+The $\beta$ matrix is defined as \[\beta = \begin{bmatrix} \beta_0 \\ \beta_1 \\ \beta_2 \\ \end{bmatrix}\]
+The $\epsilon$ matrix is defined as 
+\[\beta = \begin{bmatrix} 
+\epsilon_1 \\ 
+\epsilon_2 \\ 
+\epsilon_3 \\
+\epsilon_4 \\
+\epsilon_5 \\
+\epsilon_6 \\
+\epsilon_7 \\
+\end{bmatrix}\]
+
+**g.) h.)**
+
+```{r}
+transX = t(X)%*%X
+transX
+
+P = X%*%solve(transX)%*%t(X)
+P
+```
+
+### Problem 7
+A multiple regression of $y$ on  $x_1$, and $x_2$ produces the following results:
+\[\hat{y}=4+0.4x_1+0.9x_2,\;\;R^2=8/60\;\;e'e=520\;\;n=29.\]
+
+We also know that
+\[
+X^{'}X = \begin{bmatrix} 29 & 0 &0\\0 & 50 &10\\0 & 10 & 80\\
+\end{bmatrix}
+\]
+Test the hypothesis that the two slopes sum to 1.
+
+```{r}
+C = matrix(data=c(0,1,1), nrow=1, ncol=3)
+beta_hat = matrix(data=c(4, 
+                         0.4, 
+                         0.9), nrow=3, ncol=1)
+transXX = matrix(data=c(29, 0, 0,
+                        0, 50, 10,
+                        0, 10, 80), nrow=3, ncol=3, byrow=TRUE)
+s_2 = 520
+n = 29
+r = matrix(1)
+
+Q = t(C %*% beta_hat - r) %*% solve(C %*% solve(transXX) %*% t(C)) %*% (C%*%beta_hat - r)
+
+f_stat = (Q/2)/s_2
+f_stat
+```
+
+**Based on the f statistic of $F=`r f_stat` < 0.05$ we reject the null hypothesis that $\beta_1 + \beta_2 = 1$.**

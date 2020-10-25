@@ -1,0 +1,368 @@
+---
+title: "Art Analysis Report"
+author: "Eric Evje"
+date: "05/06/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+In 1933 George D. Birkhoff published a paper entitled, "Aesthetic Measure" [1, Wikipedia] in an attempt to describe a mathematical theory of aesthetics. The notion he proposes revolves around the measure of order and complexity of an image or other work of art. The basic equation can be written as: 
+\[M = f(\frac{O}{C})\] 
+Where $M$ is aesthetic measure, $O$ is the measure of order in the object, and $C$ is the measure of complexity in the object. Birkhoff's interest in aesthetic measure began with music, and continued into simple shapes, tiling, vases, and other works of art [2, https://www.researchgate.net/publication/323296865_Birkhoff's_aesthetic_measure]. 
+
+An interesting challenge comes with defining order and complexity, especially in paintings, the subject of this paper. A simple metric developed for order and complexity of digitized images is comparing the maximum entropy of an image vs the compressed entropy of an image.[3, https://www.researchgate.net/publication/220795251_Conceptualizing_Birkhoff's_Aesthetic_Measure_Using_Shannon_Entropy_and_Kolmogorov_Complexity] In practice this is accomplished by comparing the file size of an image after compression using a standard compression algorithm (such as .jpeg) and comparing to the pixels sie multiplied by 3 to obtain the bytes of the raw image. For this method I chose to look at two metrics adopted from the above paper, one incorporating an understanding of Shannon entropy in terms of the color space of the image weighted against the maximum entrop of the color space, and another method relying on Kolmogorov's complexity. This is defined the maximum theoretical entropy of the image against the actul entropy of the image. The computations are as follows:
+
+For aesthetic measure based on Shannon entropy, the equation used herein is:
+\[M_b = \frac{H_{max} - H_p}{H_{max}}\]
+Where $M_b$ is the measure of Shannon entropy between [0, 1], $H_max$ is the maximum theoretical entropy og the color space. Since we are converting the images to greyscale prior to analysis, the maximum entropy is $log_2(256) = 8$ [3]. $H_p$ is the entropy of the image, which is defined as $H_p = -\sum p(x)log(p(x))$ where p(x) is based upon the distribution of the pixel values in grayscale [3]. 
+
+For aesthetic measure based on Kolmogorov complexity we used the equations:
+\[M_k = \frac{NH_{max}-K}{NH_{max}}\]
+Where $M_k$ is the Kolmogorov complexity from [0,1], $N$ is the number of pixels, $H_{max}$ is the maximum information per pixel. In this case, since the full color image was used, $H_{max} = 8*3 = 24$. $K$ is Kolmogorov complexity. For this analysis, this was the file size of the compressed image in bytes. 
+
+The goal of this paper is to compute the aesthetic measures of a variety of different paintings and compare them to the average art rating of the painting. The hope is to find a method to accurately predict the art rating of new paintings. 
+
+## Image Data Generation
+
+This paper leverages survey data collected by Saif Mohammed through the National Research Council Canada. The dataset is comprised of 4,105 annotated works of art available through wikiart.org. The annotated dataset includes the style of art, category of art, year completed, whether or not it is a painting, a link to an image of the artwork, and annotations from an online survery. The annotations include the presence of a face, an art rating from -3 to 3, and a variety of other emotion categories that were not included in this analysis. 
+# Data Cleanup
+
+Firstly, the data was gone through manually to fix any errors in the year column. Some years are ranges and some are only accurate to the century. The former were adjusted for the start date and the latter were removed from the dataset. 
+
+Next, a python script was used to download the images to a local drive for faster analysis[see appendix for script]. Some images failed during analysis and these were removed from the dataset. 
+
+# image Analysis
+
+Once all of the images were local they were processed using R to find the following statistics:
+
+*$mean_{red}$ - the mean value from the red channel of the image's histogram
+*$mean_{green}$ - the mean value from the green channel of the image's histogram
+*$mean_{blue}$ - the mean value from the blue channel of the image's histogram
+
+*$median_red$ - the median value from the red channel of the image's histogram
+*$median_green$ - the median value from the green channel of the image's histogram
+*$median_blue$ - the median value from the blue channel of the image's histogram
+
+*$sd_red$ - the standard deviation value from the red channel of the image's histogram
+*$sd_green$ - the standard deviation value from the green channel of the image's histogram
+*$sd_blue$ - the standard deviation value from the blue channel of the image's histogram
+
+*$per_red$ - the percent of the image intensity from the red channel
+*$per_green$ - the percent of the image intensity from the green channel
+*$per_blue$ - the percent of the image intensity from the blue channel
+
+*$per_edges$ - the percent of the image after thresholding that is 1, indicating an edge in the image
+*$M_k$ - The aesthetic coefficient based upon Kolmogorov complexity
+*$M_{kedge}$ = The aesthetic coefficient based upon Kolmogorov complexity completed on an edges only image
+*$M_s$ - The aesthetic coefficient based upon Shannon Entropy
+
+A script was used to automated the process[see appendix]. The mean, median, and standard deviation of the color channels is a straighforward mean, median, or standard deviation calculation on all of the values in the respective color channel. The percent values are the ratio of the sum of the respective channel against the other two channels. Edge finding was performed by applying a high pass filter to the image followed by a thresholding routine. The ratio of high and low pixels was calculated for per_edges. The aesthetic coefficients were calculated as described in the introduction. 
+
+##Model Building
+
+The first model fitted used OLS linear regression by searching all possible regression models as well as the interaction between all variables and $M_s$. The notion for the inclusion of the interaction term was the theory that expectation of art is an important aspect of the viewer's rating of a work of art, and thus their expecation on the ratio of order over complexity may change (e.g. a viewer of modern art may expect less entropy in the art than compared to a Renaissance piece).  Before fitting, the data set was broken up into a training and test data set at 75% and 25%, respectively. After all possible regressions was complete, the lowest cross validation score was found, and that model was fit to the training data. This was then used to predict values for the test data set and find RMSE of the model. After the first full model fit, it was evident there were several variables with multicollinearity, and in fact one that is aliased. We first must remove $per_blue$ from the model since it is an alias of $per_red + per_green$. After removal of $per_blue$ and the dummy variables for analysis, the variance inflation factors were run for the full model.  
+
+```{r}
+#vif_fit = lm(Ave..art.rating~.-ID -modern -renaissance -contemporary -postrenaissance -contmodern, data=df)
+#vifs = vif(vif_fit)
+#vifs
+```
+
+Eventually, mean_green, mean_blue, median_green, and mean_red are removed from the model as well, and re-run. 
+
+The RMSE value for this model was 0.6717. 
+
+```{r}
+library(R330)
+library(caret)
+library(readr)
+set.seed(10000)
+allposs_df = read.csv("gitrepos/Art_Analyzer/allposs_df.csv", stringsAsFactors = FALSE)
+train_ind = sort(sample(seq_len(nrow(allposs_df)), size=0.75 * nrow(df)))
+test_ind <- setdiff(seq_len(nrow(allposs_df)), train_ind)
+
+df_train = allposs_df[train_ind, ]
+df_test = allposs_df[test_ind, ]
+
+fit = lm(Ave..art.rating~(.-ID)*Benses, data=df_train)
+
+#models = allpossregs(fit, best=1, really.big=really.big)
+
+
+minimum = which(models[,"CV"]==min(models[,"CV"]))
+par(mfrow=c(1, 2))
+plot(models[,"CV"], col=ifelse(models[,"CV"]==min(models[,"CV"]), "red", "black"))
+plot(models[,"Cp"], col=ifelse(models[,"Cp"]==min(models[,"Cp"]), "red", "black"))
+```
+
+Both metrics (CV and Cp) point to models arounf index 18 as the model with the best predicitve capabilities. The CV metric was chosen and the best model with $`r minimum`$ variables was used.
+
+```{r}
+predictors = names(which(tail(models[11,], -7)==TRUE))
+predictors <- paste(predictors, collapse = "+")
+#print(predictors)
+model = as.formula(paste0("Ave..art.rating", "~", predictors))
+#print(model)
+
+best_fit = lm(model, data=df_train)
+
+test_set = predict(best_fit, df_test)
+plot(test_set, df_test$Ave..art.rating)
+#lines(lowess(df_test$Ave..art.rating, test_set), col=rgb(1,0,0))
+lines(c(0, 100), c(0, 100), col=rgb(0,1,0))
+fit_prediction = lm(df_test$Ave..art.rating~test_set)
+abline(fit_prediction)
+residuals = test_set - df_test$Ave..art.rating
+se = sd(residuals)
+#print(se)
+```
+
+The plot seen above are the predicited values of average art rating plotted against the actual values. The RMSE was $RMSE = `r se`$. The full fitted model was 
+\[`r model`\]
+
+
+```{r}
+plot(best_fit, which=1:4)
+```
+
+Looking at Cook's distance, there are 3 flagged data points, 710, 1782, 2171. These paintings are shown below for potential explanation of their outlier nature. 
+
+```{r}
+ID = allposs_df$ID[710]
+path = paste0("/Users/ericevje/gitrepos/Art_Analyzer/", ID, ".jpg")
+img = readImage(path)
+display(img)
+allposs_df[710,]
+```
+
+This first outlier, titles "Anachor Te Endormi" by Joseph-Marie Vien had an art rating of 1.1 and a predictes value of 1.4. There does not to be anything abnormal from the aesthetic measures numbers nor the year or style. 
+
+```{r}
+ID = allposs_df$ID[1782]
+path = paste0("/Users/ericevje/gitrepos/Art_Analyzer/", ID, ".jpg")
+img = readImage(path)
+display(img)
+allposs_df[1782,]
+predict(best_fit, allposs_df[1782,])
+```
+
+The next outlier was "Ferry Boat" by Esaias van de Velde from 1622. This also does not appear to have any strange data compared to the other data points. 
+
+```{r}
+ID = allposs_df$ID[2171]
+path = paste0("/Users/ericevje/gitrepos/Art_Analyzer/", ID, ".jpg")
+img = readImage(path)
+display(img)
+allposs_df[2171,]
+predict(best_fit, allposs_df[2171,])
+```
+
+The final influential point was "Animated Tension", a 1953 piece by Alberto Magnelli. The actual art rating is -0.9 and the predicted rating was 0.26. Again, nothing particularly out of sorts with the data upon close inspection. These three points were removed to see if our predictive capabilities would increase. 
+```{r}
+set.seed(10000)
+allposs_df = allposs_df[-c(710, 1782, 2171, 947, 1569, 1876),]
+train_ind = sort(sample(seq_len(nrow(allposs_df)), size=0.75 * nrow(df)))
+test_ind <- setdiff(seq_len(nrow(allposs_df)), train_ind)
+
+df_train = allposs_df[train_ind, ]
+df_test = allposs_df[test_ind, ]
+
+fit = lm(Ave..art.rating~(.-ID)*Benses, data=df_train)
+
+models = allpossregs(fit, best=1, really.big=really.big)
+
+plot(models[,"CV"])
+minimum = which(models[,"CV"]==min(models[,"CV"]))
+print(minimum)
+
+predictors = names(which(tail(models[11,], -7)==TRUE))
+predictors <- paste(predictors, collapse = "+")
+print(predictors)
+model = as.formula(paste0("Ave..art.rating", "~", predictors))
+print(model)
+
+best_fit = lm(model, data=df_train)
+
+test_set = predict(best_fit, df_test)
+plot(test_set, df_test$Ave..art.rating)
+#lines(lowess(df_test$Ave..art.rating, test_set), col=rgb(1,0,0))
+lines(c(0, 100), c(0, 100), col=rgb(0,1,0))
+fit_prediction = lm(df_test$Ave..art.rating~test_set)
+abline(fit_prediction)
+residuals = test_set - df_test$Ave..art.rating
+se = sd(residuals)
+print(se)
+```
+
+```{r}
+plot(best_fit, which=1:4)
+```
+
+It appears that removing the outliers from the model decreased the performance of the model. Therefore, the best predictive model found using this method was the original model. 
+
+## Model building using Lasso Regression
+
+Fro performing regression using OLS and all possible regression algorithms to compute the best predictive model, it was clear that there were many instances of multicollinearity, and the variable space is too large to compute all possible regressions for a full model with interaction terms. Therefore, we next tried Lasso regression to find a model. Ridge regression was not attempted since it was already apparent from previous mdoel attempts that there were many variables that were not significant. Lasso regresssion does a better job of variable selection than ridge regression typically. 
+
+```{r}
+##do this once
+library(caret)
+library(glmnet)
+
+mydata = df
+
+### Very Basic cross validation or out of sample testing
+set.seed(123)
+sample <- sample.int(n = nrow(mydata), 
+                     size = floor(.80*nrow(mydata)), replace = F)
+train.data <- mydata[sample, ]
+test.data  <- mydata[-sample, ]
+```
+
+```{r}
+####
+####
+## We will use the glmnet package in order to perform ridge regression 
+## and the lasso. The main function in this package is glmnet(), which can 
+## be used to fit ridge regression models, lasso models, and more. This 
+## function has slightly different syntax from other model-fitting functions
+## that we have encountered thus far. In particular, we must pass in an  x 
+## matrix as well as a  y  vector, and we do not use the  y∼x  syntax.
+
+# Predictor variables
+x <- model.matrix(Ave..art.rating~(.-ID)*(.-ID), train.data)[,-1]
+# Outcome variable
+y <- train.data$Ave..art.rating
+
+## The glmnet() function has an alpha argument that determines what type
+## of model is fit. If alpha = 0 then a ridge regression model is fit, 
+## and if alpha = 1 then a lasso model is fit.
+## We first fit a ridge regression model:
+
+x.test <- model.matrix(Ave..art.rating ~(.-ID)*(.-ID), test.data)[,-1]
+y.actual = test.data$Ave..art.rating
+
+## compare with cross validation
+cv <- cv.glmnet(x, y, alpha = 1)
+cvfit = cv$lambda.min
+plot(cv)
+```
+
+
+```{r}
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 1, lambda = cv$lambda.min)
+# Display regression coefficients
+#coef(model)
+```
+
+```{r}
+# Make predictions on the test data
+#x.test <- model.matrix(medv ~., test.data)[,-1]
+predictions <- as.vector(predict(model,x.test))
+# Model performance metrics
+data.frame(
+  RMSE = RMSE(predictions, test.data$Ave..art.rating),
+  Rsquare = R2(predictions, test.data$Ave..art.rating)
+)
+```
+
+
+```{r}
+### Elastic net-more work bc two parameters
+# Build the model using the training set
+set.seed(123)
+model <- train(
+  Ave..art.rating ~(.-ID)*(.-ID), data = train.data, method = "glmnet",
+  rControl = trainControl("cv", number = 10),
+  tuneLength = 10
+)
+# Best tuning parameter
+model$bestTune
+```
+
+*Look for interaction terms in the model
+    *Fit full model
+    *Vif fit
+    *plot full model
+    *Remove interaction terms from data set
+*Split into test and train datasets
+*Run all poss regs
+*Choose model based on minimum CV score
+*Create lm with training set
+*Run prediction on test set
+*Calculate standard error
+*Plot predicted vs actual for test set
+
+*User glmnet to run lasso regression on second order interaction dataset
+
+## Logistic Regression
+```{r}
+##do this once
+library(caret)
+library(glmnet)
+
+mydata = df_liked
+
+### Very Basic cross validation or out of sample testing
+set.seed(123)
+sample <- sample.int(n = nrow(mydata), 
+                     size = floor(.80*nrow(mydata)), replace = F)
+train.data <- mydata[sample, ]
+test.data  <- mydata[-sample, ]
+```
+
+```{r}
+####
+####
+## We will use the glmnet package in order to perform ridge regression 
+## and the lasso. The main function in this package is glmnet(), which can 
+## be used to fit ridge regression models, lasso models, and more. This 
+## function has slightly different syntax from other model-fitting functions
+## that we have encountered thus far. In particular, we must pass in an  x 
+## matrix as well as a  y  vector, and we do not use the  y∼x  syntax.
+
+# Predictor variables
+x <- model.matrix(liked~(.-ID)*(.-ID), train.data)[,-1]
+# Outcome variable
+y <- train.data$liked
+
+## The glmnet() function has an alpha argument that determines what type
+## of model is fit. If alpha = 0 then a ridge regression model is fit, 
+## and if alpha = 1 then a lasso model is fit.
+## We first fit a ridge regression model:
+
+x.test <- model.matrix(liked ~(.-ID)*(.-ID), test.data)[,-1]
+y.actual = test.data$liked
+
+## compare with cross validation
+cv <- cv.glmnet(x, y, alpha = 1, family="binomial", type.measure = "class")
+cvfit = cv$lambda.min
+plot(cv)
+```
+
+
+```{r}
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 1, lambda = cv$lambda.min, family="binomial")
+# Display regression coefficients
+#coef(model)
+```
+
+```{r}
+# Make predictions on the test data
+#x.test <- model.matrix(medv ~., test.data)[,-1]
+predictions <- as.vector(predict(model,x.test))
+# Model performance metrics
+data.frame(
+  RMSE = RMSE(predictions, test.data$Ave..art.rating),
+  Rsquare = R2(predictions, test.data$Ave..art.rating)
+)
+```
+
+
